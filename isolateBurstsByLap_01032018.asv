@@ -1,0 +1,80 @@
+function isolateBurstsByLap_01032018
+% Use this function to isolate data from SpikeBurstIdentification_DATE.m
+% by the specified time bins for each lap/trial of a given task.
+
+%% Load the .MAT file with spike bursts:
+working_dir=pwd;
+current_dir='C:\';
+cd(current_dir);
+
+[burstFile, burstPath] = uigetfile({'*.mat',...
+        'Detected spike bursts file (*.MAT)'},'Select the spike burst data file:');
+if isequal(burstFile,0) || isequal(burstPath,0)
+    uiwait(errordlg('You need to select a file. Please try again',...
+        'ERROR','modal'));
+    cd(working_dir);
+else
+    cd(working_dir);
+    burstFileName = fullfile(burstPath, burstFile);
+end
+
+load(burstFileName, '-mat')
+
+
+lapNum = zeros(size(bursts.startTime));
+numLaps = size(segmentTimeStamps, 2);
+%% Label each spike burst by lap
+for i = 1:numLaps
+    for j = 1:size(segmentTimeStamps{1,i},1)
+        subIntervalIndx = find(bursts.startTime >= segmentTimeStamps{1,i}(j,1) & bursts.startTime <= segmentTimeStamps{1,i}(j,2));
+        if ~isempty(subIntervalIndx)
+            lapNum(subIntervalIndx) = i;
+            clear subIntervalIndx
+        end
+    end
+end
+
+%% Remove all bursts not within any of the lap times:
+notInLapTimes = find(lapNum == 0);
+bursts.startTime(notInLapTimes) = [];
+bursts.duration(notInLapTimes) = [];
+bursts.cellNumber(notInLapTimes) = [];
+bursts.tetrodeNumber(notInLapTimes) = [];
+bursts.numSpikes(notInLapTimes) = [];
+bursts.maxAmp(notInLapTimes,:) = [];
+bursts.lastTo1stAmpRatio(notInLapTimes,:) = [];
+bursts.lapNum = [];
+bursts.lapNum = lapNum(lapNum ~= 0);
+
+%% Calculate basic statistics for each spike burst length for each cell:
+comboVector = [bursts.tetrodeNumber bursts.cellNumber bursts.numSpikes bursts.lapNum];
+uniqueCombos = unique(comboVector, 'rows'); % Vector for unique sets
+% logicTarget = uniqueCombos(:,4)~=0;
+% uniqueCombos = uniqueCombos(logicTarget,:);
+% clear logicTarget
+numOfCombos = size(uniqueCombos, 1); % Finds the number of sets in the data
+meanMaxAmp = zeros(numOfCombos, 4);
+stdMaxAmp = meanMaxAmp;
+meanLast1stRatio = meanMaxAmp;
+stdLast1stRatio = meanMaxAmp;
+sampleSizeCombo = zeros(numOfCombos, 1);
+
+for i = 1:numOfCombos
+    logicTarget = ismember(comboVector, uniqueCombos(i,:), 'rows');
+    sampleSizeCombo(i) = sum(logicTarget);
+    meanMaxAmp(i,:) = mean(bursts.maxAmp(logicTarget,:));
+    stdMaxAmp(i,:) = std(bursts.maxAmp(logicTarget,:));
+    meanLast1stRatio(i,:) = mean(bursts.lastTo1stAmpRatio(logicTarget,:));
+    stdLast1stRatio(i,:) = std(bursts.lastTo1stAmpRatio(logicTarget,:));    
+end
+
+burts3spikes = uniqueCombos(:,1) == 3;
+laps3Spikes = uniqueCombos(burts3spikes,2);
+sampleSize3spikes = sampleSizeCombo(burts3spikes);
+meanMaxAmp3Spikes = meanMaxAmp(burts3spikes,:);
+stdMaxAmp3Spikes = stdMaxAmp(burts3spikes,:);
+meanLast1stRatio3Spikes = meanLast1stRatio(burts3spikes,:);
+stdLast1stRatio3Spikes = stdLast1stRatio(burts3spikes,:);
+
+
+
